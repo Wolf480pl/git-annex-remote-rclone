@@ -4,6 +4,7 @@ __Users are urged to upgrade to version 0.4 or higher immediately.
 Some ways of using earlier versions could result in data loss. [more information here](https://github.com/DanielDent/git-annex-remote-rclone/issues/8)__
 
 
+
 [![Tests](https://github.com/DanielDent/git-annex-remote-rclone/actions/workflows/test.yml/badge.svg)](https://github.com/DanielDent/git-annex-remote-rclone/actions/workflows/test.yml)
 [![Shellcheck](https://github.com/DanielDent/git-annex-remote-rclone/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/DanielDent/git-annex-remote-rclone/actions/workflows/shellcheck.yml)
 
