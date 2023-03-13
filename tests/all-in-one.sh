@@ -208,6 +208,11 @@ git-annex drop -J5 --quiet .
 git-annex get -J5 --quiet .
 git-annex drop --from GA-rclone-CI -J5 --quiet .
 
+for f in `seq 1 20`; do echo "load $f" | diff -us - "test-$f.dat"; done
+for f in `seq 1 20`; do echo "load $f" | diff -us - "test $f.dat"; done
+echo "load many spaces" |diff -us - "   test-many-spaces.dat"
+echo "load many spaces" |diff -us - "test   many spaces.dat"
+
 git-annex --debug export -J5 --quiet HEAD --to GA-rclone-export-CI
 # check if the exported file layout matches workdir, exclude .git and .tmp
 diff -ur -s --exclude=".*" . "$RCLONE_EXPORT_PREFIX"
