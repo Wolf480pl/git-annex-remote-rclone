@@ -24,6 +24,7 @@ set -e
 # When running any commands, their stdout should be redirected to stderr
 # (or /dev/null) to avoid messing up the protocol.
 runcmd () {
+	echo "DEBUG runcmd" "$@"
 	"$@" >&2
 }
 

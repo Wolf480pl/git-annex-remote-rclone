@@ -208,11 +208,11 @@ git-annex drop -J5 --quiet .
 git-annex get -J5 --quiet .
 git-annex drop --from GA-rclone-CI -J5 --quiet .
 
-git-annex export -J5 --quiet HEAD --to GA-rclone-export-CI
+git-annex --debug export -J5 --quiet HEAD --to GA-rclone-export-CI
 # check if the exported file layout matches workdir, exclude .git and .tmp
 diff -ur -s --exclude=".*" . "$RCLONE_EXPORT_PREFIX"
 git-annex drop -J5 --quiet --force .
-git-annex get -J5 --quiet .
+git-annex --debug get -J5 --quiet .
 
 # annex testremote --fast
 git-annex testremote GA-rclone-CI --fast
