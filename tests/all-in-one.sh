@@ -15,6 +15,10 @@ verlt() {
 
 set -eux
 
+mkdir .log
+export LOGDIR="$(readlink -f .log)"
+trap 'cat $LOGDIR/remote-rclone*.log' EXIT
+
 # provide versioning information to possibly ease troubleshooting
 git annex version
 rclone --version
