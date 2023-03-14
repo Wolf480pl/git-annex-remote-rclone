@@ -24,7 +24,7 @@ set -e
 # When running any commands, their stdout should be redirected to stderr
 # (or /dev/null) to avoid messing up the protocol.
 runcmd () {
-	echo "DEBUG runcmd" "$@"
+	send "DEBUG runcmd" "$@"
 	"$@" >&2
 }
 
@@ -35,7 +35,7 @@ getconfig () {
 
 # Stores a value in the remote's configuration.
 setconfig () {
-	echo SETCONFIG "$1" "$2"
+	send SETCONFIG "$1" "$2"
 }
 
 validate_layout() {
@@ -46,7 +46,7 @@ validate_layout() {
 		lower|directory|nodir|mixed|frankencase)
 			;;
 		*)
-			echo "INITREMOTE-FAILURE rclone_layout setting not recognized"
+			send "INITREMOTE-FAILURE rclone_layout setting not recognized"
 			exit 1
 			;;
 	esac
@@ -84,8 +84,9 @@ calcexportlocation() {
 
 # Asks for some value, and stores it in RET
 ask () {
-	echo "$1" "$2"
+	send "$1" "$2"
 	read -r resp
+	echo "$$< $resp" >&3
 	# Strip trailing carriage return, if present
 	resp="${resp%$'\r'}"
 	if echo "$resp" | grep '^VALUE '>/dev/null; then
@@ -104,7 +105,7 @@ printcmdresult() {
 	# which worked on Linux and OSX.
 	# shellcheck disable=SC2016
 	out_safe=$(echo "$out" | sed -ne 'H;${x;s/\n/\\n/g;s/^,//;p;}')
-	echo "DEBUG '$cmd' exited with rc=$rc and stdout=${out_safe}"
+	send "DEBUG '$cmd' exited with rc=$rc and stdout=${out_safe}"
 }
 
 GREP () {
@@ -128,16 +129,16 @@ do_checkpresent() {
 		# Any nonzero object count means present.
 		# Some rclone backends support multiple
 		# files under one name.
-		echo CHECKPRESENT-SUCCESS "$key"
+		send CHECKPRESENT-SUCCESS "$key"
 	elif [[ $res -eq 0 && -n "$count" && "$count" -eq 0 ]]; then
 		# A 0 object count means an empty directory.
-		echo CHECKPRESENT-FAILURE "$key"
+		send CHECKPRESENT-FAILURE "$key"
 	elif [[ $res -eq 3 || $res -eq 4 ]]; then
 		# file or directory doesn't exist
 		# see https://rclone.org/docs/#exit-code
-		echo CHECKPRESENT-FAILURE "$key"
+		send CHECKPRESENT-FAILURE "$key"
 	else
-		echo CHECKPRESENT-UNKNOWN "$key" "remote currently unavailable or git-annex-remote-rclone failed to parse rclone output"
+		send CHECKPRESENT-UNKNOWN "$key" "remote currently unavailable or git-annex-remote-rclone failed to parse rclone output"
 	fi
 }
 
@@ -148,20 +149,28 @@ do_remove() {
 	# Note that it's not a failure to remove a
 	# key that is not present.
 	if remove_result=$(rclone delete --retries 1 "$dest" 2>&1); then
-		echo REMOVE-SUCCESS "$key"
+		send REMOVE-SUCCESS "$key"
 	else
 		if echo "$remove_result" | GREP ' directory not found'; then
-			echo REMOVE-SUCCESS "$key"
+			send REMOVE-SUCCESS "$key"
 		else
-			echo REMOVE-FAILURE "$key"
+			send REMOVE-FAILURE "$key"
 		fi
 	fi
 }
 
+exec 3>>$LOGDIR/remote-rclone.$$.log
+
+send() {
+	echo "$$>" "$@" >&3
+	echo "$@"
+}
+
 # This has to come first, to get the protocol started.
-echo VERSION 1
+send VERSION 1
 
 while read -r line; do
+	echo "$$< $line" >&3
 	# Strip trailing carriage return, if present
 	line="${line%$'\r'}"
 	# shellcheck disable=SC2086
@@ -185,7 +194,7 @@ while read -r line; do
 				REMOTE_PREFIX="git-annex"
 			fi
 			if [ "$REMOTE_PREFIX" == "/" ]; then
-				echo INITREMOTE-FAILURE "storing objects directly in the root (/) is not supported"
+				send INITREMOTE-FAILURE "storing objects directly in the root (/) is not supported"
 			fi
 			setconfig prefix $REMOTE_PREFIX
 
@@ -199,17 +208,17 @@ while read -r line; do
 			setconfig rclone_layout "$RCLONE_LAYOUT"
 
 			if [ -z "$REMOTE_TARGET" ]; then
-				echo INITREMOTE-FAILURE "rclone remote target must be specified (use target= parameter)"
+				send INITREMOTE-FAILURE "rclone remote target must be specified (use target= parameter)"
 			fi
 
 			if runcmd rclone mkdir "$REMOTE_TARGET:$REMOTE_PREFIX"; then
-				echo INITREMOTE-SUCCESS
+				send INITREMOTE-SUCCESS
 			else
-				echo INITREMOTE-FAILURE "Failed to create directory on remote. Ensure that 'rclone config' has been run."
+				send INITREMOTE-FAILURE "Failed to create directory on remote. Ensure that 'rclone config' has been run."
 			fi
 		;;
 		EXPORTSUPPORTED)
-			echo EXPORTSUPPORTED-SUCCESS
+			send EXPORTSUPPORTED-SUCCESS
 		;;
 		PREPARE)
 			# Use GETCONFIG to get configuration settings,
@@ -226,7 +235,7 @@ while read -r line; do
 			RCLONE_LAYOUT="$RET"
 			validate_layout
 
-			echo PREPARE-SUCCESS
+			send PREPARE-SUCCESS
 		;;
 		EXPORT)
 			arg="${line:7}"
@@ -245,12 +254,12 @@ while read -r line; do
 					# XXX when at all possible, send PROGRESS
 					calclocation "$key"
 					if [ ! -e "$file" ]; then
-						echo TRANSFER-FAILURE STORE "$key" "asked to store non-existent file $file"
+						send TRANSFER-FAILURE STORE "$key" "asked to store non-existent file $file"
 					else
 						if runcmd rclone copy "$file" "$LOC"; then
-							echo TRANSFER-SUCCESS STORE "$key"
+							send TRANSFER-SUCCESS STORE "$key"
 						else
-							echo TRANSFER-FAILURE STORE "$key"
+							send TRANSFER-FAILURE STORE "$key"
 						fi
 					fi
 				;;
@@ -264,9 +273,9 @@ while read -r line; do
 						runcmd rclone copy "$LOC$key" "$GA_RC_TEMP_DIR" &&
 						mv "$GA_RC_TEMP_DIR/$key" "$file" &&
 						rmdir "$GA_RC_TEMP_DIR"; then
-						echo TRANSFER-SUCCESS RETRIEVE "$key"
+						send TRANSFER-SUCCESS RETRIEVE "$key"
 					else
-						echo TRANSFER-FAILURE RETRIEVE "$key"
+						send TRANSFER-FAILURE RETRIEVE "$key"
 					fi
 				;;
 			esac
@@ -285,15 +294,15 @@ while read -r line; do
 
 					# XXX when at all possible, send PROGRESS
 					if [ ! -e "$file" ]; then
-						echo TRANSFER-FAILURE STORE "$key" "asked to store non-existent file $file"
+						send TRANSFER-FAILURE STORE "$key" "asked to store non-existent file $file"
 					elif ! runcmd rclone copyto "$file" "$tmploc"; then
-						echo TRANSFER-FAILURE STORE "$key" "upload failed"
+						send TRANSFER-FAILURE STORE "$key" "upload failed"
 					else
 						if ! runcmd rclone moveto "$tmploc" "$EXPORT_LOC"; then
 							runcmd rclone delete "$tmploc"
-							echo TRANSFER-FAILURE STORE "$key" "move to final destination failed"
+							send TRANSFER-FAILURE STORE "$key" "move to final destination failed"
 						else
-							echo TRANSFER-SUCCESS STORE "$key"
+							send TRANSFER-SUCCESS STORE "$key"
 						fi
 					fi
 				;;
@@ -306,9 +315,9 @@ while read -r line; do
 						runcmd rclone copyto "$EXPORT_LOC" "$GA_RC_TEMP_DIR/$key" &&
 						mv "$GA_RC_TEMP_DIR/$key" "$file" &&
 						rmdir "$GA_RC_TEMP_DIR"; then
-						echo TRANSFER-SUCCESS RETRIEVE "$key"
+						send TRANSFER-SUCCESS RETRIEVE "$key"
 					else
-						echo TRANSFER-FAILURE RETRIEVE "$key"
+						send TRANSFER-FAILURE RETRIEVE "$key"
 					fi
 				;;
 			esac
@@ -342,16 +351,16 @@ while read -r line; do
 			newname="$RET"
 
 			if runcmd rclone moveto "$EXPORT_LOC" "$newname"; then
-				echo RENAMEEXPORT-SUCCESS "$key"
+				send RENAMEEXPORT-SUCCESS "$key"
 			else
-				echo RENAMEEXPORT-FAILURE "$key"
+				send RENAMEEXPORT-FAILURE "$key"
 			fi
 		;;
 		*)
 			# The requests listed above are all the ones
 			# that are required to be supported, so it's fine
 			# to say that any other request is unsupported.
-			echo UNSUPPORTED-REQUEST
+			send UNSUPPORTED-REQUEST
 		;;
 	esac
 done
