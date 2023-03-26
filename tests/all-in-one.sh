@@ -199,6 +199,7 @@ git-annex --debug drop test\ 1 --from GA-rclone-CI 2>&1 | grep -q 'grep.*exited 
 set +x
 for f in `seq 1 20`; do echo "load $f" | tee "test-$f.dat" >| "test $f.dat"; done
 set -x
+echo "load many spaces" |tee "   test-many-spaces.dat" >| "test   many spaces.dat"
 git annex add -J5 --quiet .
 git commit -m "add files"
 
