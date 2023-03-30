@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-18.04
+          # - ubuntu-22.04
           #- windows-2019
           - macos-latest
         rclone:
@@ -42,11 +42,11 @@ jobs:
 
     - name: Install git-annex (Ubuntu)
       if: startsWith(matrix.os, 'ubuntu-')
-      run: datalad-installer --sudo ok git-annex -m datalad/git-annex:release
+      run: sudo apt install git-annex
 
     - name: Install git-annex (macOS)
       if: startsWith(matrix.os, 'macos-')
-      run: datalad-installer git-annex -m brew
+      run: cd $(brew --repo) && ls Library && mkdir -p Library/Formula && wget -O Library/Formula/git-annex.rb https://raw.githubusercontent.com/Homebrew/homebrew-core/6a232aa8b4525cdc102152a6c646572eb09863ed/Formula/git-annex.rb && brew install git-annex
 
     - name: Install latest rclone
       if: matrix.rclone == 'current'
